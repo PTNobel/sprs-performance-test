@@ -1,0 +1,16 @@
+[package]
+name = "sprs-performance-test"
+version = "0.1.0"
+authors = ["Parth Nobel <parthnobel@berkeley.edu>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ndarray = "0.13.1"
+ndarray-linalg = "0.12.0"
+ndarray-rand = "0.11.0"
+sprs = "0.7.1"
+sprs-ldl = "0.5.0"
+petgraph = "0.5.0"
+rand_isaac = "0.2.0"
