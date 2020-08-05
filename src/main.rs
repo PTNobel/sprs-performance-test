@@ -8,7 +8,7 @@ use rand_isaac::isaac64::Isaac64Rng;
 use sprs::linalg::trisolve::lsolve_csc_dense_rhs;
 use sprs::TriMat;
 use sprs::errors::SprsError;
-use sprs_ldl::LdlNumeric;
+use sprs_ldl::Ldl;
 
 
 fn main() -> Result<(), SprsError> {
@@ -55,7 +55,11 @@ fn main() -> Result<(), SprsError> {
     let jacobian3 = jacobian3.to_csc();
     
     let tstart = std::time::Instant::now();
-    let mut ldl = LdlNumeric::new(jacobian1.view())?;
+    let mut ldl = Ldl::new()
+        .fill_in_reduction(sprs::FillInReduction::ReverseCuthillMcKee)
+        .check_symmetry(sprs::DontCheckSymmetry)
+        .numeric(jacobian1.view())?;
+        //.numeric_c(jacobian1.view())?;
     let solution1 = ldl.solve(&rhs1.view().to_slice().unwrap());
     
     ldl.update(jacobian2.view())?;
