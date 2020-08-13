@@ -500,9 +500,9 @@ checksum = "3757cb9d89161a2f24e1cf78efa0c1fcff485d18e3f55e0aa3480824ddaa0f3f"
 
 [[package]]
 name = "sprs"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a239de0976212ca3b83985d8f2ad2611d23a7eefff4c20c60ee5b7bbd3bf5876"
+checksum = "5060adcfb2949b9d63fcead63f8fbcd246099f57144ea8162ad19afead772ff9"
 dependencies = [
  "alga",
  "ndarray",
@@ -515,9 +515,9 @@ dependencies = [
 
 [[package]]
 name = "sprs-ldl"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d058db4e0e3d45bcb2dfeffd81739a2bdb2b031788fc21d5ccbd6ea4c5a37101"
+checksum = "43f7954390e6c2e1fa882981673c504161ee9d75d03cb57a7a6bf16671d939f1"
 dependencies = [
  "num-traits 0.1.43",
  "sprs",

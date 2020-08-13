@@ -59,7 +59,6 @@ fn main() -> Result<(), SprsError> {
         .fill_in_reduction(sprs::FillInReduction::ReverseCuthillMcKee)
         .check_symmetry(sprs::DontCheckSymmetry)
         .numeric(jacobian1.view())?;
-        //.numeric_c(jacobian1.view())?;
     let solution1 = ldl.solve(&rhs1.view().to_slice().unwrap());
     
     ldl.update(jacobian2.view())?;
@@ -71,6 +70,23 @@ fn main() -> Result<(), SprsError> {
     let tstop = std::time::Instant::now();
 
     println!("LdlNumeric took {}ms to solve 3 sparse systems", (tstop - tstart).as_millis());
+
+    let tstart = std::time::Instant::now();
+    let mut ldl = Ldl::new()
+        .fill_in_reduction(sprs::FillInReduction::ReverseCuthillMcKee)
+        .check_symmetry(sprs::DontCheckSymmetry)
+        .numeric_c(jacobian1.view())?;
+    let solution1 = ldl.solve(&rhs1.view().to_slice().unwrap());
+    
+    ldl.update(jacobian2.view())?;
+    let solution2 = ldl.solve(&rhs2.view().to_slice().unwrap());
+
+    ldl.update(jacobian3.view())?;
+    let solution3 = ldl.solve(&rhs3.view().to_slice().unwrap());
+
+    let tstop = std::time::Instant::now();
+
+    println!("LdlNumeric (C version of LDL) took {}ms to solve 3 sparse systems", (tstop - tstart).as_millis());
 
     let tstart = std::time::Instant::now();
     lsolve_csc_dense_rhs(jacobian1.view(), rhs1.view_mut().into_slice().unwrap())?;
