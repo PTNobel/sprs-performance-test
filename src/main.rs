@@ -5,7 +5,6 @@ use ndarray_rand::rand::SeedableRng;
 use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
 use rand_isaac::isaac64::Isaac64Rng;
-use sprs::linalg::trisolve::lsolve_csc_dense_rhs;
 use sprs::TriMat;
 use sprs::errors::SprsError;
 use sprs_ldl::Ldl;
@@ -39,81 +38,105 @@ fn main() -> Result<(), SprsError> {
     let new_x = Array1::random_using((n,), Uniform::new(0., 3.14159), &mut rng);
     let old_x = Array1::random_using((n,), Uniform::new(0., 3.14159), &mut rng);
 
-    let (mut rhs1, jacobian1) = compute_value_and_jacobian(&new_x, &old_x, &graph);
+    let (rhs1, jacobian1) = compute_value_and_jacobian(&new_x, &old_x, &graph);
     let jacobian1 = jacobian1.to_csc();
 
     let new_x = Array1::random_using((n,), Uniform::new(0., 3.14159), &mut rng);
     let old_x = Array1::random_using((n,), Uniform::new(0., 3.14159), &mut rng);
 
-    let (mut rhs2, jacobian2) = compute_value_and_jacobian(&new_x, &old_x, &graph);
+    let (rhs2, jacobian2) = compute_value_and_jacobian(&new_x, &old_x, &graph);
     let jacobian2 = jacobian2.to_csc();
 
     let new_x = Array1::random_using((n,), Uniform::new(0., 3.14159), &mut rng);
     let old_x = Array1::random_using((n,), Uniform::new(0., 3.14159), &mut rng);
 
-    let (mut rhs3, jacobian3) = compute_value_and_jacobian(&new_x, &old_x, &graph);
+    let (rhs3, jacobian3) = compute_value_and_jacobian(&new_x, &old_x, &graph);
     let jacobian3 = jacobian3.to_csc();
-    
-    let tstart = std::time::Instant::now();
+
+    // Compute ref solutions
     let mut ldl = Ldl::new()
-        .fill_in_reduction(sprs::FillInReduction::ReverseCuthillMcKee)
+        .fill_in_reduction(sprs::FillInReduction::CAMDSuiteSparse)
         .check_symmetry(sprs::DontCheckSymmetry)
         .numeric(jacobian1.view())?;
-    let solution1 = ldl.solve(&rhs1.view().to_slice().unwrap());
-    
+    let ref1 = ldl.solve(&rhs1.view().to_slice().unwrap());
+
     ldl.update(jacobian2.view())?;
-    let solution2 = ldl.solve(&rhs2.view().to_slice().unwrap());
+    let ref2 = ldl.solve(&rhs2.view().to_slice().unwrap());
 
     ldl.update(jacobian3.view())?;
-    let solution3 = ldl.solve(&rhs3.view().to_slice().unwrap());
+    let ref3 = ldl.solve(&rhs3.view().to_slice().unwrap());
 
-    let tstop = std::time::Instant::now();
+    let reductions = [
+        sprs::FillInReduction::NoReduction,
+        sprs::FillInReduction::ReverseCuthillMcKee,
+        sprs::FillInReduction::CAMDSuiteSparse,
+    ];
+    for red in &reductions {
+        let tstart = std::time::Instant::now();
+        let mut ldl = Ldl::new()
+            .fill_in_reduction(*red)
+            .check_symmetry(sprs::DontCheckSymmetry)
+            .numeric(jacobian1.view())?;
+        let solution1 = ldl.solve(&rhs1.view().to_slice().unwrap());
 
-    println!("LdlNumeric took {}ms to solve 3 sparse systems", (tstop - tstart).as_millis());
+        ldl.update(jacobian2.view())?;
+        let solution2 = ldl.solve(&rhs2.view().to_slice().unwrap());
 
-    let tstart = std::time::Instant::now();
-    let mut ldl = Ldl::new()
-        .fill_in_reduction(sprs::FillInReduction::ReverseCuthillMcKee)
-        .check_symmetry(sprs::DontCheckSymmetry)
-        .numeric_c(jacobian1.view())?;
-    let solution1 = ldl.solve(&rhs1.view().to_slice().unwrap());
-    
-    ldl.update(jacobian2.view())?;
-    let solution2 = ldl.solve(&rhs2.view().to_slice().unwrap());
+        ldl.update(jacobian3.view())?;
+        let solution3 = ldl.solve(&rhs3.view().to_slice().unwrap());
 
-    ldl.update(jacobian3.view())?;
-    let solution3 = ldl.solve(&rhs3.view().to_slice().unwrap());
+        let tstop = std::time::Instant::now();
 
-    let tstop = std::time::Instant::now();
-
-    println!("LdlNumeric (C version of LDL) took {}ms to solve 3 sparse systems", (tstop - tstart).as_millis());
-
-    let tstart = std::time::Instant::now();
-    lsolve_csc_dense_rhs(jacobian1.view(), rhs1.view_mut().into_slice().unwrap())?;
-    
-    lsolve_csc_dense_rhs(jacobian2.view(), rhs2.view_mut().into_slice().unwrap())?;
-
-    lsolve_csc_dense_rhs(jacobian3.view(), rhs3.view_mut().into_slice().unwrap())?;
-    let tstop = std::time::Instant::now();
-
-    println!("lsolve_csc_dense_rhs took {}ms to solve 3 sparse systems", (tstop - tstart).as_millis());
-    let mut sum = 0.0;
-    for (x, y) in solution1.iter().zip(&rhs1) {
-        sum += (*x - *y).powi(2);
+        println!(
+            "LdlNumeric (rust, {:?}) took {}ms to solve 3 sparse systems",
+            *red,
+            (tstop - tstart).as_millis(),
+        );
+        let mut sum = 0.0;
+        for (x, y) in solution1.iter().zip(&ref1) {
+            sum += (*x - *y).powi(2);
+        }
+        for (x, y) in solution2.iter().zip(&ref2) {
+            sum += (*x - *y).powi(2);
+        }
+        for (x, y) in solution3.iter().zip(&ref3) {
+            sum += (*x - *y).powi(2);
+        }
+        println!("L2 diff to ref {}", sum.sqrt());
     }
-    println!("l-2 norm of difference in solutions for J1 {}", sum.sqrt());
+    for red in &reductions {
+        let tstart = std::time::Instant::now();
+        let mut ldl = Ldl::new()
+            .fill_in_reduction(*red)
+            .check_symmetry(sprs::DontCheckSymmetry)
+            .numeric_c(jacobian1.view())?;
+        let solution1 = ldl.solve(&rhs1.view().to_slice().unwrap());
 
-    let mut sum = 0.0;
-    for (x, y) in solution2.iter().zip(&rhs2) {
-        sum += (*x - *y).powi(2);
-    }
-    println!("l-2 norm of difference in solutions for J2 {}", sum.sqrt());
+        ldl.update(jacobian2.view())?;
+        let solution2 = ldl.solve(&rhs2.view().to_slice().unwrap());
 
-    let mut sum = 0.0;
-    for (x, y) in solution3.iter().zip(&rhs3) {
-        sum += (*x - *y).powi(2);
+        ldl.update(jacobian3.view())?;
+        let solution3 = ldl.solve(&rhs3.view().to_slice().unwrap());
+
+        let tstop = std::time::Instant::now();
+
+        println!(
+            "LdlNumeric (C, {:?}) took {}ms to solve 3 sparse systems",
+            *red,
+            (tstop - tstart).as_millis(),
+        );
+        let mut sum = 0.0;
+        for (x, y) in solution1.iter().zip(&ref1) {
+            sum += (*x - *y).powi(2);
+        }
+        for (x, y) in solution2.iter().zip(&ref2) {
+            sum += (*x - *y).powi(2);
+        }
+        for (x, y) in solution3.iter().zip(&ref3) {
+            sum += (*x - *y).powi(2);
+        }
+        println!("L2 diff to ref {}", sum.sqrt());
     }
-    println!("l-2 norm of difference in solutions for J3 {}", sum.sqrt());
 
     Ok(())
 }
